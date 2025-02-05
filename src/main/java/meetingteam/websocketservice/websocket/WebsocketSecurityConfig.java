@@ -1,4 +1,4 @@
-package meetingteam.websocketservice.configs;
+package meetingteam.websocketservice.websocket;
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.messaging.MessageSecurityMetadataSourceRegistry;
@@ -14,6 +14,6 @@ public class WebsocketSecurityConfig extends AbstractSecurityWebSocketMessageBro
 
 	@Override
 	protected void configureInbound(MessageSecurityMetadataSourceRegistry messages) {
-		messages.anyMessage().permitAll();
+		messages.anyMessage().authenticated();
 	}
 }
