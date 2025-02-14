@@ -12,5 +12,4 @@ public class WebsocketServiceApplication {
     public static void main(String[] args) {
         SpringApplication.run(WebsocketServiceApplication.class, args);
     }
-
 }

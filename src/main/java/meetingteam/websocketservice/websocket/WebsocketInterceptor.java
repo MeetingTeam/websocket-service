@@ -3,11 +3,6 @@ package meetingteam.websocketservice.websocket;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import meetingteam.websocketservice.services.TeamService;
-import org.springframework.amqp.core.Binding;
-import org.springframework.amqp.core.BindingBuilder;
-import org.springframework.amqp.core.Exchange;
-import org.springframework.amqp.core.Queue;
-import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
@@ -33,13 +28,13 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 public class WebsocketInterceptor implements WebSocketMessageBrokerConfigurer {
 	private final JwtDecoder jwtDecoder;
 	private final JwtAuthenticationConverter jwtAuthConverter;
-	private final RabbitAdmin rabbitAdmin;
-	private final Queue websocketQueue;
-	private final Exchange websocketExchange;
 	private final TeamService teamService;
 
 	@Value("${websocket.security.auth-header}")
 	private String authHeader;
+
+	private final String userTopicPrefix="/topic/user.";
+	private final String teamTopicPrefix="/topic/team.";
 
 	@Override
 	public void configureClientInboundChannel(ChannelRegistration registration) {
@@ -48,11 +43,17 @@ public class WebsocketInterceptor implements WebSocketMessageBrokerConfigurer {
 			public Message<?> preSend(Message<?> message, MessageChannel channel) {
 				StompHeaderAccessor accessor= MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
 				if(accessor!=null && StompCommand.CONNECT.equals(accessor.getCommand())) {
-					String jwtToken = accessor.getFirstNativeHeader(authHeader);
+					try{
+						String jwtToken = accessor.getFirstNativeHeader(authHeader).substring("Bearer ".length());
 
-					Jwt jwt=jwtDecoder.decode(jwtToken);
-					var authToken=jwtAuthConverter.convert(jwt);
-					accessor.setUser(authToken);
+						Jwt jwt=jwtDecoder.decode(jwtToken);
+						var authToken=jwtAuthConverter.convert(jwt);
+						accessor.setUser(authToken);
+					}
+					catch(Exception ex){
+						throw new AccessDeniedException("Validation exception: "+ex.getMessage());
+					}
+					
 				}
 				else if(accessor!=null && StompCommand.SUBSCRIBE.equals(accessor.getCommand())) {
 					String subscribedTopic = accessor.getDestination();
@@ -62,26 +63,20 @@ public class WebsocketInterceptor implements WebSocketMessageBrokerConfigurer {
 						throw new AccessDeniedException("Unauthorized subscription attempt to " + subscribedTopic);
 					}
 
-					if(subscribedTopic.startsWith("user.")){
-						String subscriberId=subscribedTopic.substring("user.".length());
+					if(subscribedTopic.startsWith(userTopicPrefix)){
+						String subscriberId=subscribedTopic.substring(userTopicPrefix.length());
 						if(!subscriberId.equals(authentication.getName())){
 							throw new AccessDeniedException("Unauthorized subscription attempt to " + subscribedTopic);
 						}
 					}
-					else if(subscribedTopic.startsWith("team.")){
-						String teamId=subscribedTopic.substring("team.".length());
+					else if(subscribedTopic.startsWith(teamTopicPrefix)){
+						String teamId=subscribedTopic.substring(teamTopicPrefix.length());
 						if(!teamService.isMemberOfTeam(authentication.getName(), teamId, null))
 							throw new AccessDeniedException("Unauthorized subscription attempt to " + subscribedTopic);
-
-						Binding binding= BindingBuilder
-								.bind(websocketQueue)
-								.to(websocketExchange)
-								.with(subscribedTopic)
-								.noargs();
-						rabbitAdmin.declareBinding(binding);
 					}
+					else throw new AccessDeniedException("Unauthorized subscription attempt to " + subscribedTopic);
 				}
-				else if( StompCommand.SEND.equals(accessor.getCommand())){
+				else if(StompCommand.SEND.equals(accessor.getCommand())){
 					throw new AccessDeniedException("Unauthorized send attempt to " + accessor.getDestination());
 				}
 				return message;
