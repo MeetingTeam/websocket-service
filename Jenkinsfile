@@ -153,8 +153,23 @@ pipeline{
                                                             git commit -m "feat: update application image of helm chart '${appRepoName}' to version ${version}"
                                                             git push origin ${mainBranch}
                                                   """		
-				}				
+				                              }				
                               }
                     }
+          }
+          post {
+                failure {
+                      script {
+                          try{
+                              emailext(
+                                    subject: "Build Failed: ${currentBuild.fullDisplayName}",
+                                    body: "The build has failed. Please check the logs for more information.",
+                                    to: '$DEFAULT_RECIPIENTS'
+                              )
+                          } catch (Exception e) {
+                                echo "SMTP email configuration is not found or failed: ${e.getMessage()}. Skipping email notification."
+                          }
+                      }
+                }
           }
 }
