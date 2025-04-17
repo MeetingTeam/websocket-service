@@ -3,23 +3,21 @@ def mainBranch = 'main'
 
 def appRepoName = 'websocket-service'
 def appRepoUrl = "${baseRepoUrl}/${appRepoName}.git"
+def appVersion = "1.0"
 
 def k8SRepoName = 'k8s-repo'
 def helmPath = "${k8SRepoName}/application/${appRepoName}"
-def helmValueFile = "values.yaml"
+def helmValueFile = "values.test.yaml"
 
 def dockerhubAccount = 'dockerhub'
 def githubAccount = 'github'
 def kanikoAccount = 'kaniko'
 
-def dockerImageName = 'hungtran679/mt_websocket-service'
-def dockerfilePath = '.'
-
-def kanikoCacheImage = 'hungtran679/mt_kaniko_cache'
 def sonarCloudOrganization = 'meetingteam'
 
+def trivyReportFile = 'trivy_report.html'
 
-def version = "v2.${BUILD_NUMBER}"
+def imageVersion = "${appVersion}-${BUILD_NUMBER}"
 
 pipeline{
          agent {
@@ -29,7 +27,9 @@ pipeline{
           }
           
           environment {
-                    DOCKER_REGISTRY = 'registry-1.docker.io'           
+                    DOCKER_REGISTRY = 'registry-1.docker.io'
+                    DOCKER_IMAGE_NAME = 'hungtran679/mt_websocket-service'
+                    DOCKER_IMAGE = "${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}:${imageVersion}"          
           }
           
           stages{
@@ -114,12 +114,12 @@ pipeline{
                                                           sh """
                                                             mv config.json /kaniko/.docker/config.json
                                                             /kaniko/executor \
-                                                              --context=${dockerfilePath} \
-                                                              --dockerfile=${dockerfilePath}/Dockerfile \
-                                                              --destination=${DOCKER_REGISTRY}/${dockerImageName}:${version}
+                                                              --context=. \
+                                                              --dockerfile=Dockerfile \
+                                                              --destination=${DOCKER_IMAGE}
                                                           """
                                                       }
-                                                  }
+                                                }
                                         }
                               }
                     }
@@ -127,8 +127,11 @@ pipeline{
                               when{ branch mainBranch }
                               steps{
                                         container('trivy'){
-                                                  sh "trivy image --timeout 15m \${DOCKER_REGISTRY}/${dockerImageName}:${version}"
-                                                  //sh "trivy image --timeout 15m --severity HIGH,CRITICAL --exit-code 1 \${DOCKER_REGISTRY}/${dockerImageName}:${version}"
+                                                sh """
+                                                    wget -O html.tpl https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl
+                                                    trivy image --format template --template \"@html.tpl\" -o ${trivyReportFile} \
+                                                        --timeout 15m --scanners vuln ${DOCKER_IMAGE}
+                                                """
                                         }
                               }
                     }
@@ -145,12 +148,12 @@ pipeline{
                                                   sh """
                                                             git clone https://\${GIT_USER}:\${GIT_PASS}@github.com/MeetingTeam/${k8SRepoName}.git --branch ${mainBranch}
                                                             cd ${helmPath}
-                                                            sed -i 's|  tag: .*|  tag: "${version}"|' ${helmValueFile}
+                                                            sed -i 's|  tag: .*|  tag: "${imageVersion}"|' ${helmValueFile}
 
                                                             git config --global user.email "jenkins@gmail.com"
                                                             git config --global user.name "Jenkins"
                                                             git add .
-                                                            git commit -m "feat: update application image of helm chart '${appRepoName}' to version ${version}"
+                                                            git commit -m "feat: update application image of helm chart '${appRepoName}' to version ${imageVersion}"
                                                             git push origin ${mainBranch}
                                                   """		
 				                              }				
