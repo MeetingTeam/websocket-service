@@ -7,17 +7,14 @@ def appVersion = "1.0"
 
 def k8SRepoName = 'k8s-repo'
 def helmPath = "${k8SRepoName}/application/${appRepoName}"
-def helmValueFile = "values.test.yaml"
+def helmValueFile = "values.dev.yaml"
 
-def dockerhubAccount = 'dockerhub'
 def githubAccount = 'github'
 def kanikoAccount = 'kaniko'
 
-def sonarCloudOrganization = 'meetingteam'
-
 def trivyReportFile = 'trivy_report.html'
 
-def imageVersion = "${appVersion}-${BUILD_NUMBER}"
+def sonarOrg = 'meetingteam'
 
 pipeline{
          agent {
@@ -29,7 +26,8 @@ pipeline{
           environment {
                     DOCKER_REGISTRY = 'registry-1.docker.io'
                     DOCKER_IMAGE_NAME = 'hungtran679/mt_websocket-service'
-                    DOCKER_IMAGE = "${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}:${imageVersion}"          
+                    IMAGE_VERSION = "${appVersion}-${GIT_COMMIT.take(7)}-${BUILD_NUMBER}"
+                    DOCKER_IMAGE = "${DOCKER_REGISTRY}/${DOCKER_IMAGE_NAME}:${IMAGE_VERSION}"          
           }
           
           stages{
@@ -62,33 +60,41 @@ pipeline{
                                         }
                                 }
                       }
-                      stage('Unit test stage'){
+                     stage('Compile code stage'){
+                          steps{
+                              container('maven'){
+                                  sh 'mvn clean compile'
+                              }
+                          }
+                    }
+                    stage('Unit test stage'){
                               steps{
                                         container('maven'){
                                             sh 'mvn clean test'                                     
                                         }
                               }
                     }
-                    stage('Build jar file'){
-                              steps{
-                                        container('maven'){
-                                                sh "mvn clean package -DskipTests=true"
-                                        }
-                              }
-                    }
                     stage('Code analysis'){
                               steps{
-                                        container('maven'){
-                                                  withSonarQubeEnv('SonarCloud') {
-                                                            sh "mvn sonar:sonar -Dsonar.organization=${sonarCloudOrganization}"
-                                                  }
-                                        }
+                                    container('maven'){
+                                            withSonarQubeEnv('SonarServer') {
+                                                    sh "mvn sonar:sonar -Dsonar.organization=${sonarOrg}"
+                                            }
+                                    }
                               }
                     }
                     stage('Quality gate check') {
                               steps {
                                         timeout(time: 5, unit: 'MINUTES') {
                                                   waitForQualityGate(abortPipeline: true)
+                                        }
+                              }
+                    }
+                    stage('Build jar file'){
+                              when{ branch mainBranch }
+                              steps{
+                                        container('maven'){
+                                                sh "mvn clean package -DskipTests=true"
                                         }
                               }
                     }
@@ -146,15 +152,15 @@ pipeline{
                                                   )
                                         ]) {
                                                   sh """
-                                                            git clone https://\${GIT_USER}:\${GIT_PASS}@github.com/MeetingTeam/${k8SRepoName}.git --branch ${mainBranch}
-                                                            cd ${helmPath}
-                                                            sed -i 's|  tag: .*|  tag: "${imageVersion}"|' ${helmValueFile}
+                                                          git clone https://\${GIT_USER}:\${GIT_PASS}@github.com/MeetingTeam/${k8SRepoName}.git --branch ${mainBranch}
+                                                          cd ${helmPath}
+                                                          sed -i "/imageTag:/s/:.*/: ${IMAGE_VERSION}/" ${helmValueFile}
 
-                                                            git config --global user.email "jenkins@gmail.com"
-                                                            git config --global user.name "Jenkins"
-                                                            git add .
-                                                            git commit -m "feat: update application image of helm chart '${appRepoName}' to version ${imageVersion}"
-                                                            git push origin ${mainBranch}
+                                                          git config --global user.email "jenkins@gmail.com"
+                                                          git config --global user.name "Jenkins"
+                                                          git add .
+                                                          git commit -m "feat: update application image of helm chart '${appRepoName}' to version ${IMAGE_VERSION}"
+                                                          git push origin ${mainBranch}
                                                   """		
 				                              }				
                               }
