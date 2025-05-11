@@ -70,7 +70,7 @@ pipeline{
                     stage('Unit test stage'){
                               steps{
                                         container('maven'){
-                                            sh 'mvn clean test'                                     
+                                            sh 'mvn test'                                     
                                         }
                               }
                     }
@@ -94,7 +94,7 @@ pipeline{
                               when{ branch mainBranch }
                               steps{
                                         container('maven'){
-                                                sh "mvn clean package -DskipTests=true"
+                                                sh "mvn package -DskipTests=true"
                                         }
                               }
                     }
@@ -167,18 +167,8 @@ pipeline{
                     }
           }
           post {
-                failure {
-                      script {
-                          try{
-                              emailext(
-                                    subject: "Build Failed: ${currentBuild.fullDisplayName}",
-                                    body: "The build has failed. Please check the logs for more information.",
-                                    to: '$DEFAULT_RECIPIENTS'
-                              )
-                          } catch (Exception e) {
-                                echo "SMTP email configuration is not found or failed: ${e.getMessage()}. Skipping email notification."
-                          }
-                      }
-                }
-          }
+                always {
+                      archiveArtifacts artifacts: trivyReportFile, allowEmptyArchive: true, fingerprint: true
+                }              
+        }
 }
