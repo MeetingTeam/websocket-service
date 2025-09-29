@@ -1,12 +1,13 @@
 package meetingteam.websocketservice;
 
+import meetingteam.websocketservice.configs.AnomalyConfig;
 import meetingteam.websocketservice.configs.ServiceUrlConfig;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 
 @SpringBootApplication
-@EnableConfigurationProperties(ServiceUrlConfig.class)
+@EnableConfigurationProperties({ServiceUrlConfig.class, AnomalyConfig.class})
 public class WebsocketServiceApplication {
 
     public static void main(String[] args) {

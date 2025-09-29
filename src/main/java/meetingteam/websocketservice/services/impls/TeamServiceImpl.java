@@ -18,8 +18,6 @@ public class TeamServiceImpl implements TeamService{
     private final RestClient restClient;
 
     @Override
-    @Retry(name="restApi")
-    @CircuitBreaker(name="restCircuitBreaker")
     public boolean isMemberOfTeam(String userId, String teamId, String channelId) {
         var uriBuilder= UriComponentsBuilder.fromHttpUrl(serviceUrlConfig.teamServiceUrl())
                 .path("/team-member/private/is-member-of-team")

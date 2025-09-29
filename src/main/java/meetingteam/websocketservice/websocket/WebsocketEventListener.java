@@ -31,7 +31,7 @@ public class WebsocketEventListener {
     private final UserService userService;
     private final RabbitAdmin rabbitAdmin;
     private final Queue websocketQueue;
-    private final Exchange websocketExchange;
+    private final Exchange exchange;
     private final Map<String, Set<String>> sessionIdSubscriptionsMap= new ConcurrentHashMap();
     private final Map<String, AtomicInteger> subscriptionNumMap = new ConcurrentHashMap();
 
@@ -73,7 +73,7 @@ public class WebsocketEventListener {
 
             Binding binding= BindingBuilder
                     .bind(websocketQueue)
-                    .to(websocketExchange)
+                    .to(exchange)
                     .with(subscribedTopic)
                     .noargs();
             rabbitAdmin.declareBinding(binding);
@@ -101,7 +101,7 @@ public class WebsocketEventListener {
         if(count<=0){
             Binding binding= BindingBuilder
                     .bind(websocketQueue)
-                    .to(websocketExchange)
+                    .to(exchange)
                     .with(subscribedTopic)
                     .noargs();
             rabbitAdmin.removeBinding(binding);
